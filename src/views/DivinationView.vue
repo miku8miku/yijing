@@ -90,8 +90,30 @@
           </div>
           <div class="result-right">
             <div class="column-title">变化推演</div>
-            <div id="yaoTextSection">
-              <!-- 动爻详解会在此渲染 -->
+            <div class="yao-text-section" v-if="movingYaos.length > 0">
+              <h3>【动爻】共{{ movingYaos.length }}个动爻</h3>
+              <div class="yao-item" v-for="yaoIndex in movingYaos" :key="yaoIndex">
+                <div class="yao-title">{{ hexagram?.yaoText[yaoIndex]?.title }}</div>
+                <div class="yao-content">{{ hexagram?.yaoText[yaoIndex]?.text }}</div>
+              </div>
+            </div>
+            <div class="no-moving-yao" v-else>
+              <p>无动爻，直接参考本卦卦辞</p>
+            </div>
+            <div class="interpretation-guide" v-if="movingYaos.length > 0">
+              <h3>【解卦指引】</h3>
+              <p v-if="movingYaos.length === 1 || movingYaos.length === 2">
+                参考上述动爻爻辞，结合变卦卦辞综合判断
+              </p>
+              <p v-else-if="movingYaos.length === 3">
+                本卦卦辞与变卦卦辞综合参考，本卦为主
+              </p>
+              <p v-else-if="movingYaos.length >= 4 && movingYaos.length < 6">
+                参考变卦及其静爻爻辞，以变卦为主
+              </p>
+              <p v-else-if="movingYaos.length === 6">
+                六爻皆变，参考变卦卦辞（乾坤二卦特殊：乾卦用九"见群龙无首，吉"，坤卦用六"利永贞"）
+              </p>
             </div>
             <div class="bian-gua" v-if="showBianGua">
               <h3>【变卦】<span>{{ bianHexagram?.name }}</span></h3>
@@ -158,7 +180,6 @@ const {
 const currentView = ref<'question' | 'divination' | 'result'>('question');
 const step = ref<number>(1);
 const currentStep = ref<'fenEr' | 'guaYi' | 'dieSi'>('fenEr');
-const changeResults = ref<number[]>([]);
 const totalRemainder = ref<number>(0);
 const showChangeInfo = ref<boolean>(false);
 const hexagram = ref<Hexagram | undefined>();
@@ -211,36 +232,27 @@ function handleDieSi() {
   const remainder = dieSi();
   totalRemainder.value = remainder;
   showChangeInfo.value = true;
-  changeResults.value.push(remainder);
-
-  if (currentChange.value < 3) {
-    currentStep.value = 'fenEr';
-  } else {
-    const yaoValue = totalSticks.value / 4;
-    const yaoType = getYaoType(yaoValue);
-    yaoResults.value.push({ value: yaoValue, type: yaoType });
-    showChangeInfo.value = false;
-  }
+  // 保持 dieSi 状态，等待用户点击"下一变"或"下一爻"按钮
 }
 
 function handleNextChange() {
   nextChange();
   currentStep.value = 'fenEr';
-  resetForNewChange();
   showChangeInfo.value = false;
   totalRemainder.value = 0;
 }
 
 function handleNextYao() {
+  completeYao();
   nextYao();
   currentStep.value = 'fenEr';
-  resetForNewChange();
   showChangeInfo.value = false;
   totalRemainder.value = 0;
   step.value = currentYao.value + 1;
 }
 
 function handleShowResult() {
+  completeYao();
   buildHexagram();
   currentView.value = 'result';
   step.value = 8;
@@ -250,10 +262,13 @@ function buildHexagram() {
   const binary = hexagramBinary.value;
   hexagram.value = hexagramData[binary];
 
-  if (movingYaos.value.length > 0 && movingYaos.value.length < 6) {
+  // 有动爻时显示变卦（包括6个动爻的情况）
+  if (movingYaos.value.length > 0) {
     const bianBinary = buildBianBinary();
     bianHexagram.value = hexagramData[bianBinary];
     showBianGua.value = !!bianHexagram.value;
+  } else {
+    showBianGua.value = false;
   }
 }
 
@@ -273,7 +288,6 @@ function restart() {
   reset();
   currentView.value = 'question';
   currentStep.value = 'fenEr';
-  changeResults.value = [];
   totalRemainder.value = 0;
   showChangeInfo.value = false;
   hexagram.value = undefined;
@@ -481,6 +495,76 @@ function restart() {
 .bian-gua .gua-symbol {
   font-size: 3vh;
   margin: 0.5vh 0;
+}
+
+.yao-text-section {
+  background: var(--card-bg);
+  padding: 1.5vh;
+  border-radius: 8px;
+  margin-bottom: 1vh;
+}
+
+.yao-text-section h3 {
+  color: var(--secondary-color);
+  font-size: 1.8vh;
+  margin-bottom: 1vh;
+  text-align: center;
+}
+
+.yao-item {
+  margin-bottom: 1vh;
+  padding: 1vh;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  border-left: 3px solid var(--accent-color);
+}
+
+.yao-title {
+  color: var(--accent-color);
+  font-size: 1.6vh;
+  font-weight: bold;
+  margin-bottom: 0.5vh;
+}
+
+.yao-content {
+  color: var(--text-color);
+  font-size: 1.4vh;
+  line-height: 1.5;
+}
+
+.no-moving-yao {
+  background: var(--card-bg);
+  padding: 2vh;
+  border-radius: 8px;
+  text-align: center;
+  margin-bottom: 1vh;
+}
+
+.no-moving-yao p {
+  color: var(--secondary-color);
+  font-size: 1.6vh;
+}
+
+.interpretation-guide {
+  background: rgba(212, 165, 116, 0.1);
+  padding: 1.5vh;
+  border-radius: 8px;
+  margin-bottom: 1vh;
+  border: 1px solid rgba(212, 165, 116, 0.3);
+}
+
+.interpretation-guide h3 {
+  color: var(--secondary-color);
+  font-size: 1.7vh;
+  margin-bottom: 0.8vh;
+  text-align: center;
+}
+
+.interpretation-guide p {
+  color: var(--text-color);
+  font-size: 1.5vh;
+  line-height: 1.6;
+  text-align: center;
 }
 
 footer {
